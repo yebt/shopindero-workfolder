@@ -1,0 +1,104 @@
+# vim: ts=2 sts=2 et  
+# yaml-language-server:   "$schema": "https://json-schema.org/draft/2019-09/schema#",
+version: '3'
+services:
+
+  nginx-proxy:
+    image: nginxproxy/nginx-proxy
+    ports:
+      - "80:80"
+    volumes:
+      - /run/user/1000/podman/podman.sock:/tmp/docker.sock:Z #
+      - ./nginx/nginx_proxy/error.log:/var/log/nginx/error.log:Z # optional to monitor error.log
+      - ./nginx/nginx_proxy/access.log:/var/log/nginx/access.log:Z # optional to monitor access.log
+      # - /var/run/docker.sock:/tmp/docker.sock:ro #  on case of  use podman-docker and docker-remote
+    privileged: true
+    container_name: spdr_nginx_proxy
+    restart: always
+    # hostname: nginx-proxy
+
+  w1:
+    image: nginx
+    # hostname: spdr.local
+    # dns_search: spdr.local
+    environment:
+      - VIRTUAL_HOST=spdr.local
+      - VIRTUAL_PORT=80
+      # - NGINX_HOST=spdr.local
+      # - NGINX_PORT=80
+    expose:
+      - "80"
+    volumes:
+      - ./src_test:/usr/share/nginx/html:z
+    container_name: spdr_nginx_test
+
+  #nginx to conect later with php
+  nginx-php:
+    image: nginx
+    privileged: true
+    # hostname: shopp.test
+    # dns_search: shopp.test
+    environment:
+      - VIRTUAL_HOST=shopp.test,lmcnzr.test
+      # - VIRTUAL_HOST=shopp.test
+      - VIRTUAL_PORT=80
+      # - NGINX_HOST=shopp.test
+      # - NGINX_PORT=80
+    expose:
+      - "80"
+    ports:
+      - "5000:80"
+    volumes:
+      - ./shopindero:/var/www/html:z
+      - ./nginx/nginx_php/nginx.conf:/etc/nginx/conf.d/default.conf:z
+      - ./nginx/nginx_php/access.log:/var/log/nginx/access.log:z
+      - ./nginx/nginx_php/error.log:/var/log/nginx/error.log:z
+    depends_on:
+      - php-fpm
+    container_name: spdr_nginx_php
+    # this is the command to set the owner of the storage
+    
+
+  #php-fpm
+  php-fpm:
+    build: .
+    container_name: spdr_php_fpm
+    working_dir: /var/www/html
+    expose:
+      - "9000"
+    volumes:
+      - ./shopindero:/var/www/html:z
+      - ./php-fpm/www.conf:/usr/local/etc/php-fpm.d/www.conf:z
+      - ./php-fpm/php-fpm.log:/var/log/php-fpm/php-fpm.log:z
+      - ./php-fpm/fpm-php.www.log:/var/log/fpm-php.www.log:z
+    #command: sh -c  " if [ -d /var/www/html/storage ] ; then chown -R www-data:www-data /var/www/html/storage;  fi && if [ -d /var/www/html/bootstrap/cache ] ; then chown -R www-data:www-data /var/www/html/bootstrap/cache;  fi &&  php-fpm"
+    
+
+  #mysql
+  mysql:
+    image: mysql:latest
+    environment:
+      - MYSQL_ROOT_PASSWORD=p4s5w0rd
+      - MYSQL_DATABASE=shopindero_shopdatabase
+      - MYSQL_USER=shopindero_shopuser
+      - MYSQL_PASSWORD=!ws-l=?=z1
+    volumes:
+      - ./mysql:/var/lib/mysql:z
+    ports:
+      - "5001:3306"
+    container_name: spdr_mysql
+
+  #phpmyadmin
+  phpmyadmin:
+    image: phpmyadmin:latest
+    ports:
+      - "5002:80"
+    environment:
+      - PMA_HOST=mysql
+      - PMA_PORT=3306
+      - PMA_USER=shopindero_shopuser
+      - PMA_PASSWORD=!ws-l=?=z1
+      - PMA_DATABASE=shopindero_shopdatabase
+      - MYSQL_ROOT_PASSWORD=p4s5w0rd
+      - UPLOAD_LIMIT=2048M
+    container_name: spdr_phpmyadmin
